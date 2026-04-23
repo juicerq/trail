@@ -28,7 +28,7 @@
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",
 		"test": "bun test",
-		"prepare": "lefthook install"
+		"prepare": "bun x lefthook install"
 	},
 	"devDependencies": {
 		"@orpc/server": "^1.10.4",
