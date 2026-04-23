@@ -10,6 +10,9 @@
 		"format": "bun --filter '*' format",
 		"format:check": "bun --filter '*' format:check",
 		"test": "bun --filter '*' test",
-		"prepare": "bun x lefthook install"
+		"prepare": "lefthook install"
+	},
+	"devDependencies": {
+		"lefthook": "^2.1.6"
 	}
 }
