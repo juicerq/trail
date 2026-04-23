@@ -6,7 +6,7 @@ Personal wide-event observability library. Bun-first, TypeScript source publishe
 
 ## Status
 
-`v0.1.0` — MVP released. See [`context.md`](./context.md) for design decisions and roadmap.
+`v0.1.3` — MVP core package.
 
 ## Install
 

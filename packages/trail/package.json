@@ -1,0 +1,60 @@
+{
+	"name": "@juicerq/trail",
+	"version": "0.1.3",
+	"description": "Personal wide-event observability library. Bun-first.",
+	"license": "MIT",
+	"files": [
+		"src",
+		"README.md",
+		"LICENSE"
+	],
+	"type": "module",
+	"exports": {
+		"./core": "./src/core.ts",
+		"./sqlite": "./src/sqlite.ts",
+		"./memory": "./src/memory.ts",
+		"./hono": "./src/hono.ts",
+		"./orpc": "./src/orpc.ts",
+		"./trpc": "./src/trpc.ts"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"check": "tsgo -p tsconfig.json",
+		"lint": "oxlint . --no-error-on-unmatched-pattern",
+		"lint:fix": "oxlint --fix . --no-error-on-unmatched-pattern",
+		"format": "oxfmt .",
+		"format:check": "oxfmt --check .",
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"@orpc/server": "^1.10.4",
+		"@trpc/server": "^11.0.0",
+		"@typescript/native-preview": "^7.0.0-dev.20260422.1",
+		"bun-types": "^1.3.13",
+		"hono": "^4.12.14",
+		"lefthook": "^2.1.6",
+		"oxfmt": "^0.46.0",
+		"oxlint": "^1.61.0"
+	},
+	"peerDependencies": {
+		"@orpc/server": "^1.10.0",
+		"@trpc/server": "^11.0.0",
+		"hono": "^4.12.0"
+	},
+	"peerDependenciesMeta": {
+		"hono": {
+			"optional": true
+		},
+		"@orpc/server": {
+			"optional": true
+		},
+		"@trpc/server": {
+			"optional": true
+		}
+	},
+	"engines": {
+		"bun": ">=1.3.0"
+	}
+}

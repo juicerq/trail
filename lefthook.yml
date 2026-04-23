@@ -2,8 +2,8 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      run: bun lint
+      run: bun run lint
     format:
-      run: bun format:check
+      run: bun run format:check
     check:
-      run: bun check
+      run: bun run check

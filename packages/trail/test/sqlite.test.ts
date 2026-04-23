@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import type { BaseEvent } from "../src/core";
@@ -49,6 +52,20 @@ describe("sqliteStore", () => {
 			expect(row.id).toBe(event.id);
 			expect(row.type).toBe("http");
 			expect(row.severity).toBe("warn");
+		});
+
+		it("cria diretório pai do arquivo sqlite", () => {
+			const dir = mkdtempSync(join(tmpdir(), "trail-sqlite-"));
+
+			try {
+				const store = sqliteStore<SqliteEvent>({ dbPath: join(dir, "nested", "events.db") });
+
+				store.write(makeEvent({ type: "http" }));
+
+				expect(countEvents(store)).toBe(1);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
 		});
 
 		it("persiste parent_id quando presente", () => {

@@ -1,3 +1,5 @@
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { Database, type SQLQueryBindings } from "bun:sqlite";
 import type { BaseEvent, Severity } from "./core";
 
@@ -78,11 +80,23 @@ const escapeIdent = (name: string) => {
 	return `"${name}"`;
 };
 
+const ensureDbDir = (dbPath: string) => {
+	if (dbPath === ":memory:") return;
+
+	const dir = dirname(dbPath);
+
+	if (dir === ".") return;
+
+	mkdirSync(dir, { recursive: true });
+};
+
 export function sqliteStore<E extends BaseEvent>(opts: {
 	dbPath: string;
 	columns?: Partial<Record<DeclarableKey<E>, ColumnDef>>;
 	retention?: RetentionConfig<E>;
 }) {
+	ensureDbDir(opts.dbPath);
+
 	const db = new Database(opts.dbPath);
 	const declaredEntries = Object.entries((opts.columns ?? {}) as Record<string, ColumnDef>);
 	const declaredNames = declaredEntries.map(([name]) => name);
