@@ -6,7 +6,7 @@ Personal wide-event observability library. Bun-first, TypeScript source publishe
 
 ## Status
 
-`v0.1.3` — MVP core package.
+`v0.1.4` — MVP core package.
 
 ## Install
 
@@ -21,6 +21,7 @@ import type { BaseEvent } from "@juicerq/trail/core";
 import { createObservability } from "@juicerq/trail/core";
 import { sqliteStore } from "@juicerq/trail/sqlite";
 import { createHonoMiddleware } from "@juicerq/trail/hono";
+import { createOrpcMiddleware } from "@juicerq/trail/orpc";
 
 type MyEvent = BaseEvent & {
 	type: "http" | "rpc" | "cron";
@@ -49,6 +50,12 @@ app.use(
 		maxFieldBytes: 512,
 	}),
 );
+
+const trailRpc = createOrpcMiddleware(obs, {
+	slowRequestMs: 3000,
+	expectedErrorCodes: ["NOT_FOUND"],
+	captureInput: true,
+});
 ```
 
 ## Modules

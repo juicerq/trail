@@ -1,6 +1,9 @@
 import { type AnyMiddleware, ORPCError } from "@orpc/server";
 import type { BaseEvent, Observability } from "./core";
 import { truncateLargeStrings } from "./_truncate";
+import { measureInputSize, redactInput, type RedactInputOptions } from "./redaction";
+
+export type { RedactInputOptions };
 
 export type OrpcFields = {
 	procedure: string;
@@ -8,6 +11,8 @@ export type OrpcFields = {
 	status: "ok" | "error";
 	error_code: string;
 	error_status: number;
+	input: unknown;
+	input_size: number;
 };
 
 export type OrpcMiddlewareOptions<E extends BaseEvent> = {
@@ -15,6 +20,7 @@ export type OrpcMiddlewareOptions<E extends BaseEvent> = {
 	suppressedProcedures?: string[];
 	expectedErrorCodes?: string[];
 	maxFieldBytes?: number;
+	captureInput?: boolean | RedactInputOptions;
 	onEvent?: (event: Readonly<E>) => null | void;
 };
 
@@ -22,7 +28,7 @@ export function createOrpcMiddleware<E extends BaseEvent & Partial<OrpcFields>>(
 	obs: Observability<E>,
 	opts: OrpcMiddlewareOptions<E> = {},
 ): AnyMiddleware {
-	return async ({ next, path }) => {
+	return async ({ next, path }, input) => {
 		const procedure = path.join(".");
 
 		// cast: projeto precisa ter "rpc" no E["type"]
@@ -33,6 +39,16 @@ export function createOrpcMiddleware<E extends BaseEvent & Partial<OrpcFields>>(
 
 		await obs.context(initial, async () => {
 			const start = Date.now();
+
+			if (opts.captureInput !== undefined && opts.captureInput !== false) {
+				const redactionOptions = opts.captureInput === true ? undefined : opts.captureInput;
+				const input_size = measureInputSize(input);
+
+				obs.enrich({
+					input: redactInput(input, redactionOptions),
+					...(input_size === undefined ? {} : { input_size }),
+				} as Partial<E>);
+			}
 
 			try {
 				result = await next();

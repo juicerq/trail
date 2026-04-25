@@ -14,6 +14,8 @@ type RpcEvent = BaseEvent & {
 	error_code?: string;
 	error_status?: number;
 	user_id?: string;
+	input?: unknown;
+	input_size?: number;
 	payload?: string;
 	redacted?: string;
 };
@@ -256,6 +258,67 @@ describe("createOrpcMiddleware", () => {
 		expect(payload.length).toBeLessThan(200);
 		expect(payload.startsWith("aaaaaaaaaa")).toBe(true);
 		expect(payload.includes("truncated")).toBe(true);
+	});
+
+	it("captureInput redige chaves sensíveis e registra tamanho original", async () => {
+		const { store, trail } = setup({ captureInput: true });
+
+		const router = {
+			login: os.use(trail).handler(async ({ input }) => input),
+		};
+		const client = createRouterClient(router, { context: {} });
+
+		await client.login({
+			email: "ana@example.com",
+			password: "123456",
+			profile: {
+				apiKey: "abc",
+				session_token: "def",
+			},
+		});
+
+		const e = only(store.events);
+
+		expect(e.input_size).toBeGreaterThan(0);
+		expect(e.input).toEqual({
+			email: "ana@example.com",
+			password: "<redacted>",
+			profile: {
+				apiKey: "<redacted>",
+				session_token: "<redacted>",
+			},
+		});
+	});
+
+	it("captureInput limita strings, arrays, objetos e ciclos", async () => {
+		const { store, trail } = setup({
+			captureInput: {
+				maxStringBytes: 4,
+				maxArrayItems: 2,
+				maxObjectEntries: 2,
+				maxDepth: 3,
+			},
+		});
+		const input: Record<string, unknown> = {
+			long: "abcdef",
+			items: [1, 2, 3, 4],
+			nested: { a: { b: { c: "deep" } } },
+			extra: true,
+		};
+		input.self = input;
+
+		const router = {
+			save: os.use(trail).handler(async () => "ok"),
+		};
+		const client = createRouterClient(router, { context: {} });
+
+		await client.save(input);
+
+		expect(only(store.events).input).toEqual({
+			long: "abcd...[2b truncated]",
+			items: [1, 2, "<2 items truncated>"],
+			__truncated_entries: 3,
+		});
 	});
 
 	it("onEvent recebe evento readonly e pode suprimir retornando null", async () => {
