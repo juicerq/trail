@@ -1,5 +1,6 @@
 import { type AnyMiddleware, ORPCError } from "@orpc/server";
 import type { BaseEvent, Observability } from "./core";
+import type { ColumnDef } from "./sqlite";
 import { truncateLargeStrings } from "./_truncate";
 import { measureInputSize, redactInput, type RedactInputOptions } from "./redaction";
 
@@ -14,6 +15,16 @@ export type OrpcFields = {
 	input: unknown;
 	input_size: number;
 };
+
+// schema padrão pra spread em sqliteStore({ columns }). `input` fica em extra (JSON, payload variável)
+export const orpcColumns = {
+	procedure: { type: "text", index: true },
+	duration_ms: { type: "integer", index: true },
+	status: { type: "text", index: true },
+	error_code: { type: "text", index: true },
+	error_status: { type: "integer" },
+	input_size: { type: "integer" },
+} as const satisfies Partial<Record<keyof OrpcFields, ColumnDef>>;
 
 export type OrpcMiddlewareOptions<E extends BaseEvent> = {
 	slowRequestMs?: number;

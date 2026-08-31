@@ -1,63 +1,66 @@
 #!/usr/bin/env bun
 
-import { Database } from "bun:sqlite";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { describeSchema } from "./server/schema";
+import { Database } from "bun:sqlite";
+import { z } from "zod";
 import { createStudioApp } from "./server/app";
+import { describeColumns, describeStats } from "./server/schema";
 
-type CliOptions = {
-	dbPath: string;
-	port?: number;
-	host: string;
-	open: boolean;
-	live: boolean;
-	help: boolean;
-};
+const VERSION = "0.1.4";
 
-function usage(): string {
-	return `trail-studio v0.1.3
+const cliSchema = z.object({
+	dbPath: z.string().min(1),
+	port: z.number().int().positive().optional(),
+	host: z.string().min(1),
+	open: z.boolean(),
+	live: z.boolean(),
+});
 
-Usage:
-  bunx @juicerq/trail-studio [options]
+type CliOptions = z.infer<typeof cliSchema>;
 
-Options:
-  --db <path>         caminho do arquivo .db (default: ./obs.db)
+const usage = `trail-studio v${VERSION}
+
+Uso:
+  bunx @juicerq/trail-studio [opções]
+
+Opções:
+  --db <path>         caminho do arquivo .db (default: ./obs.db ou $DB_PATH)
   --port <n>          port fixo (default: random disponível)
   --host <ip>         bind address (default: 127.0.0.1)
   --no-open           não abre browser
   --no-live           live tail desligado na boot
   --help              mostra esta ajuda
 `;
+
+function requireValue(arg: string, value: string | undefined): string {
+	if (value === undefined || value.startsWith("--")) {
+		throw new Error(`Opção ${arg} requer um valor`);
+	}
+	return value;
 }
 
-function parseArgs(args: string[]): CliOptions {
-	const opts: CliOptions = {
+function parseArgs(args: string[]): CliOptions | "help" {
+	const raw: Record<string, unknown> = {
 		dbPath: process.env.DB_PATH ?? "./obs.db",
 		host: "127.0.0.1",
 		open: true,
 		live: true,
-		help: false,
 	};
 
 	for (let i = 0; i < args.length; i += 1) {
-		const arg = args[i];
+		const arg = args[i] as string;
 
-		if (arg === "--help") opts.help = true;
-		else if (arg === "--no-open") opts.open = false;
-		else if (arg === "--no-live") opts.live = false;
-		else if (arg === "--db") opts.dbPath = args[++i] ?? opts.dbPath;
-		else if (arg === "--host") opts.host = args[++i] ?? opts.host;
-		else if (arg === "--port") {
-			const raw = Number(args[++i]);
-			if (!Number.isFinite(raw) || raw <= 0) throw new Error("--port must be a positive number");
-			opts.port = Math.trunc(raw);
-		} else {
-			throw new Error(`Unknown option '${arg}'`);
-		}
+		if (arg === "--help" || arg === "-h") return "help";
+		else if (arg === "--no-open") raw.open = false;
+		else if (arg === "--no-live") raw.live = false;
+		else if (arg === "--db") raw.dbPath = requireValue(arg, args[++i]);
+		else if (arg === "--host") raw.host = requireValue(arg, args[++i]);
+		else if (arg === "--port") raw.port = Number(requireValue(arg, args[++i]));
+		else throw new Error(`Opção desconhecida: ${arg}`);
 	}
 
-	return opts;
+	return cliSchema.parse(raw);
 }
 
 function formatBytes(bytes: number): string {
@@ -70,33 +73,78 @@ function openBrowser(url: string) {
 	const command =
 		process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
 	const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+
 	Bun.spawn([command, ...args], { stdout: "ignore", stderr: "ignore" });
 }
 
-const opts = parseArgs(Bun.argv.slice(2));
+function fail(message: string): never {
+	console.error(`trail-studio: ${message}`);
+	process.exit(1);
+}
 
-if (opts.help) {
-	console.log(usage());
+let opts: CliOptions | "help";
+
+try {
+	opts = parseArgs(Bun.argv.slice(2));
+} catch (err) {
+	fail(err instanceof Error ? err.message : String(err));
+}
+
+if (opts === "help") {
+	console.log(usage);
 	process.exit(0);
 }
 
 const dbPath = resolve(opts.dbPath);
-const db = new Database(dbPath, { readonly: true });
-const schema = describeSchema(db);
+
+if (!existsSync(dbPath)) {
+	fail(`arquivo do DB não existe: ${dbPath}\n  use --db <path> pra apontar pro seu obs.db`);
+}
+
+let db: Database;
+try {
+	db = new Database(dbPath, { readonly: true });
+} catch (err) {
+	fail(`falha ao abrir ${dbPath}: ${err instanceof Error ? err.message : String(err)}`);
+}
+
+let columns;
+let stats;
+try {
+	columns = describeColumns(db);
+	stats = describeStats(db);
+} catch (err) {
+	fail(`schema inválido em ${dbPath}: ${err instanceof Error ? err.message : String(err)}`);
+}
+
 const clientDir = resolve(import.meta.dir, "../dist/client");
+
+if (!existsSync(clientDir)) {
+	fail(`bundle do client não encontrado em ${clientDir}\n  rode 'bun run build' antes`);
+}
+
 const server = Bun.serve({
 	hostname: opts.host,
 	port: opts.port ?? 0,
-	fetch: createStudioApp(db, clientDir, { liveTail: opts.live }).fetch,
+	fetch: createStudioApp(db, columns, clientDir, { liveTail: opts.live }).fetch,
 });
 const url = `http://${opts.host}:${server.port}`;
 const size = formatBytes(statSync(dbPath).size);
 
-console.log(`trail-studio v0.1.3
-  db:        ${opts.dbPath} (${size}, ${schema.stats.total.toLocaleString()} events)
+console.log(`trail-studio v${VERSION}
+  db:        ${opts.dbPath} (${size}, ${stats.total.toLocaleString()} events)
   listening: ${url}
   live tail: ${opts.live ? "on" : "off"}`);
 
 if (opts.open) {
 	openBrowser(url);
 }
+
+const shutdown = () => {
+	server.stop();
+	db.close();
+	process.exit(0);
+};
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

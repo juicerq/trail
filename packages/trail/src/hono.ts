@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { BaseEvent, Observability } from "./core";
+import type { ColumnDef } from "./sqlite";
 import { truncateLargeStrings } from "./_truncate";
 
 export type HonoFields = {
@@ -8,6 +9,14 @@ export type HonoFields = {
 	status: number;
 	duration_ms: number;
 };
+
+// schema padrão pra spread em sqliteStore({ columns }) — sem isso, esses campos caem em extra JSON
+export const httpColumns = {
+	method: { type: "text" },
+	path: { type: "text", index: true },
+	status: { type: "integer", index: true },
+	duration_ms: { type: "integer", index: true },
+} as const satisfies Record<keyof HonoFields, ColumnDef>;
 
 export type HonoMiddlewareOptions<E extends BaseEvent> = {
 	slowRequestMs?: number;
@@ -31,7 +40,7 @@ export function createHonoMiddleware<E extends BaseEvent & Partial<HonoFields>>(
 		>[0];
 
 		try {
-			await obs.context(initial, async () => {
+			await obs.context(initial, async (): Promise<void> => {
 				const start = Date.now();
 
 				await next();
@@ -91,8 +100,12 @@ export function createHonoMiddleware<E extends BaseEvent & Partial<HonoFields>>(
 				// Auto-capture sobrepõe suppress — erros sempre observáveis.
 				if (c.error !== undefined) throw c.error;
 			});
-		} catch {
-			// swallow: Hono já renderizou a resposta 500 via seu error handler default
+		} catch (err) {
+			// caso esperado: c.error re-lançado dentro do scope; core já capturou e store já gravou.
+			// caso anormal: store.write falhou ou outra falha do trail. logar pra não engolir silenciosamente.
+			if (c.error === undefined || err !== c.error) {
+				console.error("[trail] middleware Hono falhou ao gravar evento:", err);
+			}
 		}
 	};
 }

@@ -1,11 +1,12 @@
+import { useNavigate } from "@tanstack/react-router";
 import type { StudioEvent } from "../api";
 import { SeverityBadge } from "./severity-badge";
 
 type Props = {
 	events: StudioEvent[];
-	onOpen: (id: string) => void;
 	onLoadMore: () => void;
 	hasMore: boolean;
+	search: Record<string, string | string[] | undefined>;
 };
 
 function formatTime(ms: number) {
@@ -20,10 +21,14 @@ function displayRoute(event: StudioEvent): string {
 	return String(event.procedure ?? extra?.path ?? extra?.procedure ?? "");
 }
 
-export function EventTable({ events, onOpen, onLoadMore, hasMore }: Props) {
+export function EventTable({ events, onLoadMore, hasMore, search }: Props) {
+	const navigate = useNavigate();
+
 	if (events.length === 0) {
-		return <div className="empty">No events match the current filters.</div>;
+		return <div className="empty">Nenhum evento bate com os filtros atuais.</div>;
 	}
+
+	const open = (id: string) => void navigate({ to: "/events/$id", params: { id }, search });
 
 	return (
 		<div className="table-wrap">
@@ -43,14 +48,14 @@ export function EventTable({ events, onOpen, onLoadMore, hasMore }: Props) {
 						const error = event.error as Record<string, unknown> | null;
 
 						return (
-							<tr key={event.id} onClick={() => onOpen(event.id)}>
+							<tr key={event.id} onClick={() => open(event.id)}>
 								<td>{formatTime(event.timestamp)}</td>
 								<td>
 									<SeverityBadge severity={event.severity} />
 								</td>
 								<td>{event.type}</td>
 								<td>{displayRoute(event)}</td>
-								<td>{event.duration_ms == null ? "" : `${event.duration_ms}ms`}</td>
+								<td>{event.duration_ms == null ? "" : `${String(event.duration_ms)}ms`}</td>
 								<td>{String(error?.code ?? "")}</td>
 							</tr>
 						);
@@ -60,7 +65,7 @@ export function EventTable({ events, onOpen, onLoadMore, hasMore }: Props) {
 			{hasMore ? (
 				<div className="load-more">
 					<button type="button" onClick={onLoadMore}>
-						Load more
+						Carregar mais
 					</button>
 				</div>
 			) : null}

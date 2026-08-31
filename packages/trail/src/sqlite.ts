@@ -98,6 +98,14 @@ export function sqliteStore<E extends BaseEvent>(opts: {
 	ensureDbDir(opts.dbPath);
 
 	const db = new Database(opts.dbPath);
+
+	// WAL permite Studio readonly ler concorrentemente com writes da app;
+	// :memory: ignora journal_mode silenciosamente, então skip evita ruído
+	if (opts.dbPath !== ":memory:") {
+		db.run("PRAGMA journal_mode=WAL");
+		db.run("PRAGMA synchronous=NORMAL");
+	}
+
 	const declaredEntries = Object.entries((opts.columns ?? {}) as Record<string, ColumnDef>);
 	const declaredNames = declaredEntries.map(([name]) => name);
 

@@ -78,6 +78,17 @@ main {
 	gap: 8px;
 }
 
+.badge-new {
+	background: #1d4630;
+	border-color: #1d4630;
+	color: #ffffff;
+	font-weight: 600;
+}
+
+.badge-new:hover {
+	background: #143524;
+}
+
 .filters {
 	align-items: end;
 	border-bottom: 1px solid #d8ded7;

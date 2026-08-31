@@ -173,6 +173,19 @@ describe("sqliteStore", () => {
 				}),
 			).toThrow();
 		});
+
+		it("liga WAL em DB persistente pra leitura concorrente do Studio", () => {
+			const dir = mkdtempSync(join(tmpdir(), "trail-wal-"));
+
+			try {
+				const store = sqliteStore<SqliteEvent>({ dbPath: join(dir, "obs.db") });
+				const row = getRow<{ journal_mode: string }>(store, "PRAGMA journal_mode");
+
+				expect(row.journal_mode.toLowerCase()).toBe("wal");
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		});
 	});
 
 	describe("retention cleanup", () => {

@@ -1,54 +1,64 @@
 import type { Database } from "bun:sqlite";
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { describeSchema } from "./schema";
-import { getTrace, listDistinct, listEvents } from "./queries";
+import { z, type ZodType } from "zod";
+import type { StudioColumn } from "../_types";
+import { countEvents, getTrace, listDistinct, listEvents } from "./queries";
+import { describeStats } from "./schema";
 
-export function createApiRoutes(db: Database, opts: { liveTail: boolean } = { liveTail: true }) {
-	const app = new Hono();
+const distinctQuery = z.object({
+	column: z.string().min(1, "informe ?column=<nome>"),
+	limit: z.coerce.number().int().positive().max(200).default(50),
+});
 
-	app.get("/health", (c) => c.json({ ok: true }));
+const traceParam = z.object({ id: z.string().min(1) });
 
-	app.get("/config", (c) => c.json({ liveTail: opts.liveTail }));
-
-	app.get("/schema", (c) => {
-		try {
-			return c.json(describeSchema(db));
-		} catch (error) {
-			return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+// resposta uniforme `{ error }` em vez do envelope verboso default do zValidator
+const validate = <T extends ZodType>(target: "query" | "param", schema: T) =>
+	zValidator(target, schema, (result, c) => {
+		if (!result.success) {
+			const message = result.error.issues[0]?.message ?? "Parâmetros inválidos";
+			return c.json({ error: message }, 400);
 		}
+		return undefined;
 	});
 
-	app.get("/distinct", (c) => {
-		try {
-			const column = c.req.query("column");
-			const limit = Number(c.req.query("limit") ?? 50);
+export function createApiRoutes(
+	db: Database,
+	columns: StudioColumn[],
+	opts: { liveTail: boolean } = { liveTail: true },
+) {
+	const app = new Hono();
 
-			if (!column) {
-				return c.json({ error: "Missing column query parameter" }, 400);
-			}
+	app.onError((err, c) => {
+		const message = err instanceof Error ? err.message : String(err);
+		return c.json({ error: message }, 400);
+	});
 
-			return c.json(listDistinct(db, describeSchema(db), column, limit));
-		} catch (error) {
-			return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
-		}
+	app.get("/health", (c) => c.json({ ok: true }));
+	app.get("/config", (c) => c.json({ liveTail: opts.liveTail }));
+
+	// stats fresh por request (count/oldest/newest), columns vêm do snapshot do startup
+	app.get("/schema", (c) => c.json({ columns, stats: describeStats(db) }));
+
+	app.get("/distinct", validate("query", distinctQuery), (c) => {
+		const { column, limit } = c.req.valid("query");
+		return c.json(listDistinct(db, columns, column, limit));
 	});
 
 	app.get("/events", (c) => {
-		try {
-			const url = new URL(c.req.url);
-			return c.json(listEvents(db, describeSchema(db), url.searchParams));
-		} catch (error) {
-			return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
-		}
+		const url = new URL(c.req.url);
+		return c.json(listEvents(db, columns, url.searchParams));
 	});
 
-	app.get("/events/:id/trace", (c) => {
-		const trace = getTrace(db, describeSchema(db), c.req.param("id"));
+	app.get("/count", (c) => {
+		const url = new URL(c.req.url);
+		return c.json(countEvents(db, columns, url.searchParams));
+	});
 
-		if (!trace) {
-			return c.json({ error: "Event not found" }, 404);
-		}
-
+	app.get("/events/:id/trace", validate("param", traceParam), (c) => {
+		const trace = getTrace(db, columns, c.req.valid("param").id);
+		if (!trace) return c.json({ error: "Evento não encontrado" }, 404);
 		return c.json(trace);
 	});
 

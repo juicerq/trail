@@ -1,15 +1,17 @@
 import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
+import type { StudioColumn } from "../_types";
 import { createApiRoutes } from "./routes";
 
 export function createStudioApp(
 	db: Database,
+	columns: StudioColumn[],
 	clientDir: string,
 	opts: { liveTail?: boolean } = {},
 ) {
 	const app = new Hono();
 
-	app.route("/api", createApiRoutes(db, { liveTail: opts.liveTail ?? true }));
+	app.route("/api", createApiRoutes(db, columns, { liveTail: opts.liveTail ?? true }));
 
 	app.get("*", async (c) => {
 		const path = new URL(c.req.url).pathname;

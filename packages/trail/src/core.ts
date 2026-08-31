@@ -1,7 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { hostname as osHostname } from "node:os";
 
-export type Severity = "debug" | "info" | "warn" | "error" | "fatal";
+export const SEVERITIES = ["debug", "info", "warn", "error", "fatal"] as const;
+
+export type Severity = (typeof SEVERITIES)[number];
 
 export type BaseEvent = {
 	id: string;
@@ -37,13 +39,10 @@ type ScopeState<E extends BaseEvent> = {
 	suppressed: boolean;
 };
 
-const severityOrder: Record<Severity, number> = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3,
-	fatal: 4,
-};
+const severityOrder = Object.fromEntries(SEVERITIES.map((s, i) => [s, i])) as Record<
+	Severity,
+	number
+>;
 
 const toErrorPayload = (err: unknown): NonNullable<BaseEvent["error"]> => {
 	if (!(err instanceof Error)) {

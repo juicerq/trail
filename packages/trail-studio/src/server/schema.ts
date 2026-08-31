@@ -1,20 +1,5 @@
 import type { Database } from "bun:sqlite";
-
-export type StudioColumn = {
-	name: string;
-	type: string;
-	indexed: boolean;
-	base: boolean;
-};
-
-export type StudioSchema = {
-	columns: StudioColumn[];
-	stats: {
-		total: number;
-		oldest: number | null;
-		newest: number | null;
-	};
-};
+import type { StudioColumn, StudioSchema, StudioStats } from "../_types";
 
 type TableInfoRow = {
 	name: string;
@@ -30,11 +15,7 @@ type IndexInfoRow = {
 	name: string;
 };
 
-type StatsRow = {
-	total: number;
-	oldest: number | null;
-	newest: number | null;
-};
+type StatsRow = StudioStats;
 
 const BASE_COLUMNS = new Set([
 	"id",
@@ -50,17 +31,23 @@ const BASE_COLUMNS = new Set([
 
 export function escapeIdent(name: string): string {
 	if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-		throw new Error(`Invalid identifier '${name}'`);
+		throw new Error(`Identificador inválido '${name}'`);
 	}
 
 	return `"${name}"`;
 }
 
+// columns + stats numa só call; útil pro startup do CLI e pro endpoint /schema.
 export function describeSchema(db: Database): StudioSchema {
+	return { columns: describeColumns(db), stats: describeStats(db) };
+}
+
+// estrutura imutável durante a vida do processo (DB readonly): cacheia no startup.
+export function describeColumns(db: Database): StudioColumn[] {
 	const table = db.query<TableInfoRow, []>("PRAGMA table_info(events)").all();
 
 	if (table.length === 0) {
-		throw new Error("Table 'events' was not found in this database");
+		throw new Error("Tabela 'events' não encontrada neste banco");
 	}
 
 	const indexed = new Set<string>();
@@ -79,23 +66,30 @@ export function describeSchema(db: Database): StudioSchema {
 		}
 	}
 
-	const stats = db
-		.query<StatsRow, []>(
-			"SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM events",
-		)
-		.get() ?? { total: 0, oldest: null, newest: null };
-
-	return {
-		columns: table.map((column) => ({
-			name: column.name,
-			type: column.type,
-			indexed: indexed.has(column.name),
-			base: BASE_COLUMNS.has(column.name),
-		})),
-		stats,
-	};
+	return table.map((column) => ({
+		name: column.name,
+		type: column.type,
+		indexed: indexed.has(column.name),
+		base: BASE_COLUMNS.has(column.name),
+	}));
 }
 
-export function columnMap(schema: StudioSchema): Map<string, StudioColumn> {
-	return new Map(schema.columns.map((column) => [column.name, column]));
+// stats são dinâmicos: rerodar em cada /schema pra refletir writes recentes da app.
+export function describeStats(db: Database): StudioStats {
+	return (
+		db
+			.query<StatsRow, []>(
+				"SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM events",
+			)
+			.get() ?? { total: 0, oldest: null, newest: null }
+	);
+}
+
+export function columnMap(columns: StudioColumn[]): Map<string, StudioColumn> {
+	return new Map(columns.map((column) => [column.name, column]));
+}
+
+export function isNumericType(type: string): boolean {
+	const normalized = type.toUpperCase();
+	return normalized.includes("INT") || normalized.includes("REAL") || normalized.includes("NUM");
 }

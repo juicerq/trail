@@ -1,42 +1,23 @@
-export type StudioColumn = {
-	name: string;
-	type: string;
-	indexed: boolean;
-	base: boolean;
-};
+import type {
+	CountResult,
+	DistinctResult,
+	EventsResult,
+	StudioConfig,
+	StudioSchema,
+	TraceResult,
+} from "../_types";
 
-export type StudioSchema = {
-	columns: StudioColumn[];
-	stats: {
-		total: number;
-		oldest: number | null;
-		newest: number | null;
-	};
-};
-
-export type StudioEvent = Record<string, unknown> & {
-	id: string;
-	timestamp: number;
-	severity: string;
-	type: string;
-	service: string;
-	hostname: string;
-	parent_id: string | null;
-	error: unknown;
-	extra: unknown;
-};
-
-export type EventsResponse = {
-	events: StudioEvent[];
-	nextCursor: string | null;
-	hasMore: boolean;
-};
-
-export type TraceResponse = {
-	event: StudioEvent;
-	ancestors: StudioEvent[];
-	children: StudioEvent[];
-};
+// re-export pra hooks/componentes consumirem sem cruzar a barreira interna
+export type {
+	CountResult,
+	DistinctResult,
+	EventsResult,
+	StudioColumn,
+	StudioConfig,
+	StudioEvent,
+	StudioSchema,
+	TraceResult,
+} from "../_types";
 
 async function fetchJson<T>(path: string): Promise<T> {
 	const response = await fetch(path);
@@ -49,13 +30,18 @@ async function fetchJson<T>(path: string): Promise<T> {
 	return response.json() as Promise<T>;
 }
 
+function paramsToString(params: URLSearchParams): string {
+	const str = params.toString();
+	return str ? `?${str}` : "";
+}
+
 export const api = {
-	config: () => fetchJson<{ liveTail: boolean }>("/api/config"),
+	config: () => fetchJson<StudioConfig>("/api/config"),
 	schema: () => fetchJson<StudioSchema>("/api/schema"),
-	events: (params: URLSearchParams) => fetchJson<EventsResponse>(`/api/events?${params}`),
+	events: (params: URLSearchParams) =>
+		fetchJson<EventsResult>(`/api/events${paramsToString(params)}`),
+	count: (params: URLSearchParams) => fetchJson<CountResult>(`/api/count${paramsToString(params)}`),
 	distinct: (column: string) =>
-		fetchJson<{ values: Array<string | number | null>; hasMore: boolean }>(
-			`/api/distinct?column=${encodeURIComponent(column)}&limit=50`,
-		),
-	trace: (id: string) => fetchJson<TraceResponse>(`/api/events/${encodeURIComponent(id)}/trace`),
+		fetchJson<DistinctResult>(`/api/distinct?column=${encodeURIComponent(column)}&limit=50`),
+	trace: (id: string) => fetchJson<TraceResult>(`/api/events/${encodeURIComponent(id)}/trace`),
 };

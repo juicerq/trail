@@ -1,6 +1,7 @@
 import type { AnyMiddlewareFunction } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import type { BaseEvent, Observability } from "./core";
+import type { ColumnDef } from "./sqlite";
 import { truncateLargeStrings } from "./_truncate";
 
 export type TrpcFields = {
@@ -10,6 +11,15 @@ export type TrpcFields = {
 	error_code: string;
 	error_status: number;
 };
+
+// schema padrão pra spread em sqliteStore({ columns })
+export const trpcColumns = {
+	procedure: { type: "text", index: true },
+	duration_ms: { type: "integer", index: true },
+	status: { type: "text", index: true },
+	error_code: { type: "text", index: true },
+	error_status: { type: "integer" },
+} as const satisfies Record<keyof TrpcFields, ColumnDef>;
 
 export type TrpcMiddlewareOptions<E extends BaseEvent> = {
 	slowRequestMs?: number;

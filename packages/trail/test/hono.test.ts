@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { Hono } from "hono";
 import type { BaseEvent } from "../src/core";
 import { createObservability } from "../src/core";
-import { createHonoMiddleware } from "../src/hono";
+import { createHonoMiddleware, httpColumns } from "../src/hono";
 import { memoryStore } from "../src/memory";
 import { only } from "./_helpers";
 
@@ -206,5 +206,42 @@ describe("createHonoMiddleware", () => {
 
 		expect(e.redacted).toBe("***");
 		expect(e.severity).toBe("warn");
+	});
+
+	it("loga quando store.write falha (não engole silenciosamente)", async () => {
+		const store: { write: () => never; events: HttpEvent[] } = {
+			events: [],
+			write() {
+				throw new Error("disk full");
+			},
+		};
+		const obs = createObservability<HttpEvent>({ service: "api", store });
+		const app = new Hono();
+
+		app.use("*", createHonoMiddleware<HttpEvent>(obs));
+		app.get("/ok", (c) => c.text("ok"));
+
+		const captured: string[] = [];
+		const original = console.error;
+		console.error = (...args) => captured.push(args.map(String).join(" "));
+
+		try {
+			await app.request("/ok");
+		} finally {
+			console.error = original;
+		}
+
+		expect(captured.some((line) => line.includes("disk full"))).toBe(true);
+	});
+});
+
+describe("httpColumns", () => {
+	it("declara campos esperados pra spread em sqliteStore({ columns })", () => {
+		expect(Object.keys(httpColumns).toSorted()).toEqual([
+			"duration_ms",
+			"method",
+			"path",
+			"status",
+		]);
 	});
 });

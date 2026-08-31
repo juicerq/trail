@@ -57,12 +57,12 @@ export function EventDetail({ eventId, columns, onClose, onOpen }: Props) {
 					Close
 				</button>
 			</div>
-			{trace.isLoading ? <div className="empty">Loading event...</div> : null}
+			{trace.isLoading ? <div className="empty">Carregando evento...</div> : null}
 			{trace.error ? <div className="empty">{trace.error.message}</div> : null}
 			{event ? (
 				<div className="drawer-body">
 					<section className="detail-section">
-						<h3>Base fields</h3>
+						<h3>Campos base</h3>
 						{baseOrder.map((name) => (
 							<Field
 								key={name}
@@ -71,12 +71,14 @@ export function EventDetail({ eventId, columns, onClose, onOpen }: Props) {
 							/>
 						))}
 					</section>
-					<section className="detail-section">
-						<h3>Declared fields</h3>
-						{customColumns.map((column) => (
-							<Field key={column.name} name={column.name} value={event[column.name]} />
-						))}
-					</section>
+					{customColumns.length > 0 ? (
+						<section className="detail-section">
+							<h3>Campos declarados</h3>
+							{customColumns.map((column) => (
+								<Field key={column.name} name={column.name} value={event[column.name]} />
+							))}
+						</section>
+					) : null}
 					<section className="detail-section">
 						<h3>Extra</h3>
 						<JsonBlock value={event.extra ?? {}} />

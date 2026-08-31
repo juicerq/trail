@@ -1,3 +1,4 @@
+import { SEVERITIES } from "../../_types";
 import type { StudioColumn } from "../api";
 import { useDistinct } from "../hooks/use-distinct";
 
@@ -6,8 +7,6 @@ type Props = {
 	search: URLSearchParams;
 	onSearchChange: (next: URLSearchParams) => void;
 };
-
-const severityValues = ["debug", "info", "warn", "error", "fatal"];
 
 const padDatePart = (n: number) => String(n).padStart(2, "0");
 
@@ -64,7 +63,7 @@ function TypeFilter(props: Props) {
 					props.onSearchChange(setParam(props.search, "type", event.target.value))
 				}
 			>
-				<option value="">All</option>
+				<option value="">Todos</option>
 				{values.map((value) => (
 					<option key={value} value={value}>
 						{value}
@@ -107,7 +106,7 @@ function DynamicFilter({ column, search, onSearchChange }: Props & { column: Stu
 			<span>{column.name}</span>
 			<input
 				value={search.get(`${column.name}~`) ?? ""}
-				placeholder="contains"
+				placeholder="contém"
 				onChange={(event) =>
 					onSearchChange(setParam(search, `${column.name}~`, event.target.value))
 				}
@@ -141,7 +140,7 @@ export function EventFilters(props: Props) {
 			<div className="field">
 				<span>Severity</span>
 				<div className="segmented">
-					{severityValues.map((severity) => (
+					{SEVERITIES.map((severity) => (
 						<button
 							key={severity}
 							className={selectedSeverities.has(severity) ? "active" : ""}

@@ -17,14 +17,18 @@ bun add @juicerq/trail
 ## Usage
 
 ```ts
-import type { BaseEvent } from "@juicerq/trail/core";
-import { createObservability } from "@juicerq/trail/core";
+import { createObservability, type BaseEvent, SEVERITIES } from "@juicerq/trail/core";
 import { sqliteStore } from "@juicerq/trail/sqlite";
-import { createHonoMiddleware } from "@juicerq/trail/hono";
-import { createOrpcMiddleware } from "@juicerq/trail/orpc";
+import { createHonoMiddleware, httpColumns } from "@juicerq/trail/hono";
+import { createOrpcMiddleware, orpcColumns } from "@juicerq/trail/orpc";
 
 type MyEvent = BaseEvent & {
 	type: "http" | "rpc" | "cron";
+	method?: string;
+	path?: string;
+	status?: number;
+	duration_ms?: number;
+	procedure?: string;
 	user_id?: string;
 };
 
@@ -32,7 +36,13 @@ const obs = createObservability({
 	service: "api",
 	store: sqliteStore<MyEvent>({
 		dbPath: "./obs.db",
-		columns: { user_id: { type: "text", index: true } },
+		columns: {
+			// schema padrão dos middlewares — campos enriched ganham coluna própria
+			// (com índice quando faz sentido), em vez de cair no JSON `extra`
+			...httpColumns,
+			...orpcColumns,
+			user_id: { type: "text", index: true },
+		},
 		retention: {
 			default: "3d",
 			bySeverity: { error: "90d" },
@@ -58,16 +68,22 @@ const trailRpc = createOrpcMiddleware(obs, {
 });
 ```
 
+### Por que declarar columns?
+
+Os middlewares fazem `obs.enrich({ method, path, status, duration_ms, ... })`. Sem `columns` declarado, esses campos caem no JSON `extra` — funciona, mas filtrar/indexar via SQL não.
+
+Spreading `httpColumns` / `orpcColumns` / `trpcColumns` em `sqliteStore({ columns })` cria as colunas indexadas certas pra cada middleware oficial. Isso também garante que `@juicerq/trail-studio` consiga oferecer filtros tipados e dropdowns nessas colunas.
+
 ## Modules
 
-| Subpath                 | Exports                                                              |
-| ----------------------- | -------------------------------------------------------------------- |
-| `@juicerq/trail/core`   | `createObservability`, `BaseEvent`, `Severity`, `Store<E>` interface |
-| `@juicerq/trail/sqlite` | `sqliteStore` persistent store (uses `bun:sqlite`)                   |
-| `@juicerq/trail/memory` | `memoryStore` for testing and dev                                    |
-| `@juicerq/trail/hono`   | `createHonoMiddleware`, `HonoFields`                                 |
-| `@juicerq/trail/orpc`   | `createOrpcMiddleware`, `OrpcFields`                                 |
-| `@juicerq/trail/trpc`   | `createTrpcMiddleware`, `TrpcFields`                                 |
+| Subpath                 | Exports                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `@juicerq/trail/core`   | `createObservability`, `BaseEvent`, `Severity`, `SEVERITIES`, `Store<E>`  |
+| `@juicerq/trail/sqlite` | `sqliteStore` persistent store (uses `bun:sqlite`, WAL mode auto-enabled) |
+| `@juicerq/trail/memory` | `memoryStore` for testing and dev                                         |
+| `@juicerq/trail/hono`   | `createHonoMiddleware`, `HonoFields`, `httpColumns`                       |
+| `@juicerq/trail/orpc`   | `createOrpcMiddleware`, `OrpcFields`, `orpcColumns`                       |
+| `@juicerq/trail/trpc`   | `createTrpcMiddleware`, `TrpcFields`, `trpcColumns`                       |
 
 ## License
 
