@@ -1,6 +1,6 @@
 # Trail — instruções para agentes
 
-**Leia `studio.md` primeiro** quando o trabalho envolver Trail Studio. Para o core, comece por `packages/trail/README.md` e pelos testes em `packages/trail/test/`.
+**Leia `docs/architecture.md` primeiro** quando o trabalho envolver Trail Studio. Para o core, comece por `packages/trail/README.md` e pelos testes em `packages/trail/test/`.
 
 ## Regras locais (além do ~/.claude/CLAUDE.md)
 

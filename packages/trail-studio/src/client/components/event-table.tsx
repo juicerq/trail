@@ -18,7 +18,7 @@ function formatTime(ms: number) {
 
 function displayRoute(event: StudioEvent): string {
 	const extra = event.extra as Record<string, unknown> | null;
-	return String(event.procedure ?? extra?.path ?? extra?.procedure ?? "");
+	return String(event.procedure ?? event.path ?? extra?.path ?? extra?.procedure ?? "");
 }
 
 export function EventTable({ events, onLoadMore, hasMore, search }: Props) {
